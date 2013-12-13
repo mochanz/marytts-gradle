@@ -1,0 +1,67 @@
+apply plugin: 'java'
+import java.security.MessageDigest;
+
+//Properties
+archivesBaseName = 'voice-' + voiceName
+
+
+task wrapper(type: Wrapper) {
+	/*
+		Execute Gradle Wrapper
+	*/
+	gradleVersion = '1.9'
+  }
+
+task createZip(type: Zip) {
+	/*
+		Archive all files under lib directory into a zip file
+	*/
+	from ('original_files/lib/'){
+		into ('lib')
+	}
+}
+
+task compileZip(type: Copy,dependsOn: createZip) {
+	/*
+		Create a xml file based on component.xml template. 
+		Replace the values based on the information from zip file and properties
+	*/
+
+	outputs.upToDateWhen { false } //To make sure that compileZip will always be run
+	
+	
+	//Create xml file based on component.xml template
+    from 'original_files/template'
+    into "$buildDir/distributions/"
+    include 'component.xml'
+    rename {file -> "$archivesBaseName-$version-component.xml"}
+  
+  	//Get Zip file information
+	createZip.outputs.files.each{
+		ext.zipSize= it.size()	
+		File md5File = file(it.getParent() + '/' + it.name + '.MD5')
+		ext.zipMD5 = md5File.text.trim()
+	}
+	
+  	//Fill the values on xml file	
+    expand([GENDER: gender, LOCALE : locale, VOICENAME : voiceName, MARYVERSION : version, zip_md5:ext.zipMD5, zip_size:zipSize]) 
+}
+
+task compileJar(type: Jar) {
+	/*
+		Compile java files under resource directory into a jar file
+	*/
+	from 'original_files/src/main/resources/'
+}
+
+
+tasks.withType(Zip) { task ->
+	/* 
+		Create checksum file for zip, jar, etc
+	*/
+	
+	task.doLast {
+		ant.checksum file: it.archivePath
+	}
+}
+
